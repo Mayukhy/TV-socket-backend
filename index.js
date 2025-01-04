@@ -16,6 +16,15 @@ const wss = new WebSocket.Server({ server });
 let tvSocket = null; // Stores the TV connection
 let remoteSocket = null; // Stores the Remote connection
 
+// Broadcast to all connected clients except the sender
+const broadcast = (data, excludeSocket = null) => {
+    wss.clients.forEach((client) => {
+        if (client !== excludeSocket && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
+        }
+    });
+};
+
 wss.on('connection', (socket) => {
     console.log('A client connected.');
 
@@ -36,7 +45,13 @@ wss.on('connection', (socket) => {
 
         // Handle remote commands and forward them to the TV
         if (data.type === 'command' && tvSocket) {
-            tvSocket.send(JSON.stringify(data));
+            tvSocket.send(JSON.stringify(data)); // Forward the command to the TV
+        }
+
+        // Handle refresh events and broadcast to all clients
+        if (data.type === 'refresh') {
+            console.log('Broadcasting refresh to all clients.');
+            broadcast({ type: 'refresh', state: data.state }, socket);
         }
     });
 
