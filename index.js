@@ -1,59 +1,57 @@
-const WebSocket = require("ws");
+const http = require('http');
+const WebSocket = require('ws');
 
-// Configure the WebSocket server to listen on all network interfaces
-const server = new WebSocket.Server({ port: 8080 });
+// Use environment variables for flexibility (Render provides `PORT`)
+const PORT = process.env.PORT || 8080;
+
+// Create an HTTP server (required for Render's health checks)
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('WebSocket server is running');
+});
+
+// Attach WebSocket server to the HTTP server
+const wss = new WebSocket.Server({ server });
 
 let tvSocket = null; // Stores the TV connection
 let remoteSocket = null; // Stores the Remote connection
 
-server.on("connection", (socket) => {
-  console.log("A client connected.");
+wss.on('connection', (socket) => {
+    console.log('A client connected.');
 
-  socket.on("message", (message) => {
-    try {
-      const data = JSON.parse(message);
-      console.log("Received:", data);
+    socket.on('message', (message) => {
+        const data = JSON.parse(message);
+        console.log('Received:', data);
 
-      // Handle registration of TV or Remote
-      if (data.type === "register") {
-        if (data.role === "tv") {
-          tvSocket = socket;
-          console.log("TV registered.");
-        } else if (data.role === "remote") {
-          remoteSocket = socket;
-          console.log("Remote registered.");
+        // Handle registration of TV or Remote
+        if (data.type === 'register') {
+            if (data.role === 'tv') {
+                tvSocket = socket;
+                console.log('TV registered.');
+            } else if (data.role === 'remote') {
+                remoteSocket = socket;
+                console.log('Remote registered.');
+            }
         }
-      }
 
-      // Handle remote commands
-      if (data.type === "command" && tvSocket) {
-        tvSocket.send(JSON.stringify(data)); // Forward the command to the TV
-      }
-    } catch (error) {
-      console.error("Error processing message:", error);
-    }
-  });
+        // Handle remote commands and forward them to the TV
+        if (data.type === 'command' && tvSocket) {
+            tvSocket.send(JSON.stringify(data));
+        }
+    });
 
-  socket.on("close", () => {
-    if (socket === tvSocket) {
-      console.log("TV disconnected.");
-      tvSocket = null;
-    } else if (socket === remoteSocket) {
-      console.log("Remote disconnected.");
-      remoteSocket = null;
-    }
-  });
+    socket.on('close', () => {
+        if (socket === tvSocket) {
+            console.log('TV disconnected.');
+            tvSocket = null;
+        } else if (socket === remoteSocket) {
+            console.log('Remote disconnected.');
+            remoteSocket = null;
+        }
+    });
 });
 
-console.log("WebSocket server is running on ws://0.0.0.0:8080");
-
-// Display the server's local IP address for easy access from remote devices
-const os = require("os");
-const networkInterfaces = os.networkInterfaces();
-Object.values(networkInterfaces).forEach((interfaces) => {
-  interfaces.forEach((iface) => {
-    if (iface.family === "IPv4" && !iface.internal) {
-      console.log(`Access the server at ws://${iface.address}:8080`);
-    }
-  });
+// Start the server
+server.listen(PORT, () => {
+    console.log(`WebSocket server is running on port ${PORT}`);
 });
